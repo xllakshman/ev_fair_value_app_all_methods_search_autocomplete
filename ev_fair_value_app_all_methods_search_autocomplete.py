@@ -238,14 +238,23 @@ if ticker_symbol:
             )
             st.markdown("#### 💰 Stock Fair Valuation Comparison")
             st.table({
-                "Method": ["Current Price","Actual Market Value (EV)", "Cashflow Value (DCF)", "Safe Value (Graham)", "Profit Value (PE)", "Fair Value (Combined)"],
+                "Method": [
+                    "Current Price",
+                    "Actual Market Value (EV)", 
+                    "Cashflow Value (DCF)", 
+                    "Safe Value (Graham)", 
+                    "Profit Value (PE)", 
+                    "Fair Value (Combined)",
+                    "Expected Return %"
+                    ],
                 "Fair Value": [
                     format_currency(current_price, currency),
                     format_currency(ev_val, currency),
                     format_currency(dcf_val, currency),
                     format_currency(graham_val, currency),
                     format_currency(pe_val, currency),
-                    format_currency(combined_val, currency)
+                    format_currency(combined_val, currency),
+                    round(((combined_val - current_price) / current_price) * 100,2)
                 ]
             })
 
