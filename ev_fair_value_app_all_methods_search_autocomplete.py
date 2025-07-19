@@ -13,7 +13,7 @@ from ta.momentum import RSIIndicator
 from ta.trend import MACD
 
 st.set_page_config(page_title="Stock Fair Value Analyzer", layout="wide")
-st.title("📈 Global Equity Fair Value Recommendation")
+st.title("📈 Global Equities Fair Value Recommendation")
 
 GITHUB_CSV_URL = "https://raw.githubusercontent.com/xllakshman/ev_fair_value_app_with_serach/main/stock_list.csv"
 
@@ -24,6 +24,11 @@ def format_currency(val, currency_code="USD"):
         return f"{symbol}{val:,.2f}" if val is not None else "-"
     except:
         return "-"
+
+# To handle errors due to lack of data in yfinance
+def safe_format_currency(df, col, currency):
+    if df is not None and col in df.columns:
+        df[col] = df[col].apply(lambda x: format_currency(x, currency) if pd.notna(x) else None)
 
 def dcf_valuation(eps, growth_rate=0.08, discount_rate=0.10):
     try:
@@ -123,8 +128,6 @@ def ev_valuation(ticker):
         return None
 
 
-
-
 @st.cache_data(show_spinner=False)
 def search_yahoo_finance(query):
     """Search Yahoo Finance for ticker/company name matches."""
@@ -173,7 +176,7 @@ def search_yahoo_finance(query):
         return []
 
 
-# --- UI Input ---
+# --- UI Input to Serach a ticker ---
 query_input = st.text_input("🔍 Type company name or stock ticker:")
 
 ticker_symbol = None
@@ -194,8 +197,14 @@ if ticker_symbol:
     eps = info.get("trailingEps", 0)
     bvps = info.get("bookValue", 0)
     pe_ratio = info.get("trailingPE", 15)
+    current_price = info.get("currentPrice")
 
-    ev_val = result.get("Market Value (EV)", None)
+    if result is not None and result.get("Market Value (EV)", None) is not None:
+        ev_val = result["Market Value (EV)"] 
+    else:
+        st.warning(f"⚠️ We have limited data availability to provide fair value estimates for {ticker_symbol}.")
+        ev_val = 0
+    #ev_val = result.get("Market Value (EV)", None)
     dcf_val = dcf_valuation(eps)
     graham_val = graham_valuation(eps, bvps)
     pe_val = pe_valuation(eps, pe_ratio)
@@ -205,16 +214,11 @@ if ticker_symbol:
     with tab1:
         df = pd.DataFrame([result])
         currency = info.get("currency", "USD")
-        df["Market Value (EV)"] = df["Market Value (EV)"].apply(lambda x: format_currency(x, currency))
-        df["Current Price"] = df["Current Price"].apply(lambda x: format_currency(x, currency))
-        df["3Y High"] = df["3Y High"].apply(lambda x: format_currency(x, currency))
-        df["3Y Low"] = df["3Y Low"].apply(lambda x: format_currency(x, currency))
-        df["Entry Price"] = df["Entry Price"].apply(lambda x: format_currency(x, currency))
-        df["Exit Price"] = df["Exit Price"].apply(lambda x: format_currency(x, currency))
-         
-       # df["Fair Value (DCF)"] = dcf_val
-       # df["Fair Value (Graham)"] = graham_val
-       # df["Fair Value (PE)"] = pe_val
+
+       # Apply to all price-related columns to handle lack of data in yfinance
+        for col in ["Market Value (EV)", "Current Price", "3Y High", "3Y Low", "Entry Price", "Exit Price"]:
+            safe_format_currency(df, col, currency)
+        
         st.dataframe(df)
         
         st.markdown("## Stock Fair Value Comparison")
@@ -234,8 +238,9 @@ if ticker_symbol:
             )
             st.markdown("#### 💰 Stock Fair Valuation Comparison")
             st.table({
-                "Method": ["Actual Market Value (EV)", "Cashflow Value (DCF)", "Safe Value (Graham)", "Profit Value (PE)", "Fair Value (Combined)"],
+                "Method": ["Current Price","Actual Market Value (EV)", "Cashflow Value (DCF)", "Safe Value (Graham)", "Profit Value (PE)", "Fair Value (Combined)"],
                 "Fair Value": [
+                    format_currency(current_price, currency),
                     format_currency(ev_val, currency),
                     format_currency(dcf_val, currency),
                     format_currency(graham_val, currency),
